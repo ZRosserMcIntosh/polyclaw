@@ -219,7 +219,11 @@ class InefficiencyScanner:
 
         # Run WebSocket stream and periodic Polymarket polling concurrently
         async def poll_polymarket():
+            start_time = asyncio.get_event_loop().time()
             while self._running:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed >= duration_seconds:
+                    break
                 try:
                     await self._refresh_crypto_markets()
                     self._session.total_polymarket_polls += 1
