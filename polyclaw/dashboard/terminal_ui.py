@@ -233,3 +233,140 @@ def print_simulation_results(results: dict[str, Any]):
         for k, v in risk.items():
             table.add_row(str(k), str(v))
         console.print(risk_table)
+
+
+def print_leaderboard(board):
+    """Display the trader leaderboard."""
+    from polyclaw.analysis.leaderboard import EnrichedLeaderboard
+
+    lb: EnrichedLeaderboard = board
+
+    console.print()
+    console.print("[bold cyan]🏆 PolyClaw Trader Leaderboard[/]")
+    console.print(
+        f"   Fills analyzed: [bold]{lb.total_fills_analyzed:,}[/]  |  "
+        f"Unique wallets: [bold]{lb.total_unique_wallets:,}[/]  |  "
+        f"Window: [bold]{lb.time_window_hours:.1f}h[/]  |  "
+        f"Scan time: [bold]{lb.scan_duration_seconds:.1f}s[/]"
+    )
+    console.print()
+
+    # Tier emoji map
+    tier_emoji = {"whale": "🐋", "shark": "🦈", "dolphin": "🐬", "fish": "🐟"}
+
+    table = Table(
+        title="Top Traders by Composite Score",
+        box=box.SIMPLE_HEAVY,
+        show_lines=True,
+    )
+    table.add_column("#", style="dim", justify="right", width=4)
+    table.add_column("Tier", justify="center", width=4)
+    table.add_column("Address", style="cyan", width=16)
+    table.add_column("Score", style="bold yellow", justify="right", width=7)
+    table.add_column("Volume", style="green", justify="right", width=12)
+    table.add_column("Trades", justify="right", width=7)
+    table.add_column("Avg Size", justify="right", width=10)
+    table.add_column("Maker%", justify="right", width=7)
+    table.add_column("Trades/Day", justify="right", width=10)
+    table.add_column("Type", justify="center", width=6)
+
+    for t in lb.traders[:30]:
+        emoji = tier_emoji.get(t.tier, "❓")
+        addr_short = f"{t.address[:6]}…{t.address[-4:]}"
+        bot_label = "🤖" if t.is_likely_bot else "👤"
+
+        table.add_row(
+            str(t.rank),
+            emoji,
+            addr_short,
+            f"{t.score:.1f}",
+            f"${t.total_volume_usd:,.0f}",
+            str(t.trade_count),
+            f"${t.avg_trade_size:,.0f}",
+            f"{t.maker_ratio:.0%}",
+            f"{t.trades_per_day:.1f}",
+            bot_label,
+        )
+
+    console.print(table)
+
+    # Summary row
+    humans = lb.humans_only
+    bots = [t for t in lb.traders if t.is_likely_bot]
+    console.print(
+        f"\n   👤 Humans: [bold]{len(humans)}[/]  |  "
+        f"🤖 Likely Bots: [bold]{len(bots)}[/]  |  "
+        f"🐋 Whales: [bold]{len(lb.whales)}[/]  |  "
+        f"🦈 Sharks: [bold]{len(lb.sharks)}[/]"
+    )
+    console.print()
+
+
+def print_copytrade_session(session):
+    """Display copy-trade monitoring session results."""
+    from polyclaw.analysis.copytrade import CopyTradeSession
+
+    s: CopyTradeSession = session
+
+    console.print()
+    console.print("[bold cyan]🎯 Copy-Trade Monitor Session[/]")
+    console.print(
+        f"   Duration: [bold]{s.duration_seconds:.0f}s[/]  |  "
+        f"Polls: [bold]{s.total_polls}[/]  |  "
+        f"Wallets tracked: [bold]{s.wallets_tracked}[/]  |  "
+        f"Events detected: [bold]{s.total_events}[/]"
+    )
+
+    if not s.events:
+        console.print(
+            "\n   [dim]No trades detected from tracked wallets during this session.[/]"
+        )
+        console.print(
+            "   [dim]This is normal — wallets may not trade during short windows.[/]"
+        )
+        return
+
+    console.print()
+
+    table = Table(
+        title="Detected Copy-Trade Events",
+        box=box.SIMPLE_HEAVY,
+        show_lines=True,
+    )
+    table.add_column("Time", style="dim", width=10)
+    table.add_column("Wallet", style="cyan", width=16)
+    table.add_column("Role", justify="center", width=7)
+    table.add_column("Amount", style="green", justify="right", width=12)
+    table.add_column("Counterparty", style="dim", width=16)
+    table.add_column("Copied?", justify="center", width=7)
+
+    for evt in s.events[:50]:
+        addr_short = f"{evt.wallet[:6]}…{evt.wallet[-4:]}"
+        cp_short = f"{evt.counterparty[:6]}…{evt.counterparty[-4:]}"
+        role_color = "green" if evt.role == "maker" else "yellow"
+        copied = "✅" if evt.paper_copied else "❌"
+
+        table.add_row(
+            evt.timestamp.strftime("%H:%M:%S"),
+            addr_short,
+            f"[{role_color}]{evt.role}[/]",
+            f"${evt.amount_usd:,.2f}",
+            cp_short,
+            copied,
+        )
+
+    console.print(table)
+
+    # Per-wallet summary
+    wallet_volumes: dict[str, float] = {}
+    wallet_counts: dict[str, int] = {}
+    for evt in s.events:
+        wallet_volumes[evt.wallet] = wallet_volumes.get(evt.wallet, 0) + evt.amount_usd
+        wallet_counts[evt.wallet] = wallet_counts.get(evt.wallet, 0) + 1
+
+    console.print("\n[bold]Per-Wallet Summary:[/]")
+    for addr, vol in sorted(wallet_volumes.items(), key=lambda x: -x[1]):
+        addr_short = f"{addr[:6]}…{addr[-4:]}"
+        console.print(
+            f"   {addr_short}: {wallet_counts[addr]} events, ${vol:,.2f} volume"
+        )
