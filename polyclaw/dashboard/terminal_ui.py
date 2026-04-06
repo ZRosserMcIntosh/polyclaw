@@ -370,3 +370,124 @@ def print_copytrade_session(session):
         console.print(
             f"   {addr_short}: {wallet_counts[addr]} events, ${vol:,.2f} volume"
         )
+
+
+def print_kalshi_markets(markets, *, title: str = "Kalshi Markets"):
+    """Display Kalshi markets in a formatted table."""
+    console.print()
+    console.print(f"[bold cyan]📊 {title}[/]")
+    console.print(f"   Markets: [bold]{len(markets)}[/]")
+    console.print()
+
+    table = Table(box=box.SIMPLE_HEAVY, show_lines=True)
+    table.add_column("Ticker", style="dim", max_width=30)
+    table.add_column("Title", style="white", max_width=45)
+    table.add_column("Yes Bid/Ask", justify="center", width=14)
+    table.add_column("Last", style="cyan", justify="right", width=8)
+    table.add_column("Volume", style="green", justify="right", width=10)
+    table.add_column("OI", justify="right", width=10)
+    table.add_column("Status", justify="center", width=8)
+
+    for m in markets[:30]:
+        bid = m.yes_bid_dollars if hasattr(m, "yes_bid_dollars") else "?"
+        ask = m.yes_ask_dollars if hasattr(m, "yes_ask_dollars") else "?"
+        table.add_row(
+            m.ticker[:30] if hasattr(m, "ticker") else "?",
+            m.title[:45] if hasattr(m, "title") else "?",
+            f"${bid}/${ask}",
+            f"${m.last_price_dollars}" if hasattr(m, "last_price_dollars") else "?",
+            f"{float(m.volume_fp or '0'):,.0f}" if hasattr(m, "volume_fp") else "?",
+            f"{float(m.open_interest_fp or '0'):,.0f}" if hasattr(m, "open_interest_fp") else "?",
+            m.status if hasattr(m, "status") else "?",
+        )
+
+    console.print(table)
+
+
+def print_exchange_comparison(comp):
+    """Display cross-exchange comparison results."""
+    console.print()
+    console.print("[bold cyan]⚖️  Exchange Comparison: Polymarket vs Kalshi[/]")
+    console.print(
+        f"   Polymarket markets: [bold]{comp.total_polymarket}[/]  |  "
+        f"Kalshi markets: [bold]{comp.total_kalshi}[/]  |  "
+        f"Matched pairs: [bold]{len(comp.matched_pairs)}[/]"
+    )
+    console.print(
+        f"   Match rate: [bold]{comp.match_rate:.1%}[/]  |  "
+        f"Arb opportunities: [bold yellow]{comp.arb_opportunities}[/]"
+    )
+
+    # Summary stats table
+    stats = Table(title="Aggregate Stats", box=box.DOUBLE, show_lines=True)
+    stats.add_column("Metric", style="cyan")
+    stats.add_column("Polymarket", style="green", justify="right")
+    stats.add_column("Kalshi", style="yellow", justify="right")
+    stats.add_column("Difference", justify="right")
+
+    stats.add_row(
+        "Avg Spread",
+        f"{comp.avg_polymarket_spread:.4f}",
+        f"{comp.avg_kalshi_spread:.4f}",
+        f"{comp.avg_kalshi_spread - comp.avg_polymarket_spread:+.4f}",
+    )
+    stats.add_row(
+        "Total Volume",
+        f"${comp.total_polymarket_volume:,.0f}",
+        f"{comp.total_kalshi_volume:,.0f} contracts",
+        "—",
+    )
+    stats.add_row(
+        "Avg Price Diff",
+        "—",
+        "—",
+        f"{comp.avg_price_diff:+.4f}",
+    )
+    console.print()
+    console.print(stats)
+
+    if not comp.matched_pairs:
+        console.print(
+            "\n   [dim]No matching markets found between exchanges.[/]"
+        )
+        return
+
+    # Matched pairs table
+    console.print()
+    pairs_table = Table(
+        title="Matched Market Pairs",
+        box=box.SIMPLE_HEAVY,
+        show_lines=True,
+    )
+    pairs_table.add_column("Polymarket", style="green", max_width=35)
+    pairs_table.add_column("Kalshi", style="yellow", max_width=35)
+    pairs_table.add_column("PM Price", justify="right", width=9)
+    pairs_table.add_column("KL Price", justify="right", width=9)
+    pairs_table.add_column("Diff", justify="right", width=8)
+    pairs_table.add_column("Match", justify="right", width=6)
+    pairs_table.add_column("Arb?", justify="center", width=5)
+
+    for p in comp.matched_pairs[:20]:
+        diff_color = "red" if abs(p.price_diff_pct) > 5 else "dim"
+        arb = "⚡" if p.has_arb_opportunity else ""
+
+        pairs_table.add_row(
+            p.polymarket_question[:35],
+            p.kalshi_title[:35],
+            f"${p.polymarket_yes_price:.3f}",
+            f"${p.kalshi_yes_price:.3f}",
+            f"[{diff_color}]{p.price_diff_pct:+.1f}%[/]",
+            f"{p.match_score:.0%}",
+            arb,
+        )
+
+    console.print(pairs_table)
+
+    # Advantages summary
+    console.print()
+    console.print("[bold]Platform Comparison:[/]")
+    console.print("   [green]Polymarket[/]: Crypto-native, higher volume on crypto/politics,")
+    console.print("     no KYC for basic trading, lower fees, deeper liquidity")
+    console.print("   [yellow]Kalshi[/]: CFTC-regulated, proper API with RSA auth,")
+    console.print("     demo environment, better for US users, structured products")
+    console.print("   [cyan]Both[/]: Binary outcomes, limit orders, real-time data")

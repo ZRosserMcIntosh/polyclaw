@@ -29,12 +29,20 @@ class APIConfig:
     polygonscan_api_key: str = ""
     polygonscan_base_url: str = "https://api.polygonscan.com/api"
 
+    # Kalshi
+    kalshi_api_key_id: str = ""
+    kalshi_private_key_path: str = ""
+    kalshi_demo: bool = True  # Default to demo for safety
+
     def __post_init__(self):
         self.polymarket_api_key = os.getenv("POLYMARKET_API_KEY", "")
         self.polymarket_api_secret = os.getenv("POLYMARKET_API_SECRET", "")
         self.binance_api_key = os.getenv("BINANCE_API_KEY", "")
         self.binance_api_secret = os.getenv("BINANCE_API_SECRET", "")
         self.polygonscan_api_key = os.getenv("POLYGONSCAN_API_KEY", "")
+        self.kalshi_api_key_id = os.getenv("KALSHI_API_KEY_ID", "")
+        self.kalshi_private_key_path = os.getenv("KALSHI_PRIVATE_KEY_PATH", "")
+        self.kalshi_demo = os.getenv("KALSHI_DEMO", "true").lower() in ("true", "1", "yes")
 
 
 @dataclass

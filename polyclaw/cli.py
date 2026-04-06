@@ -18,6 +18,8 @@ from polyclaw.dashboard.terminal_ui import (
     print_wallet_profile,
     print_leaderboard,
     print_copytrade_session,
+    print_kalshi_markets,
+    print_exchange_comparison,
 )
 
 
@@ -264,6 +266,103 @@ def copy_trade(addresses: tuple[str, ...], duration: int, interval: float, label
             print_copytrade_session(session)
         finally:
             await monitor.close()
+
+    asyncio.run(_run())
+
+
+# ---- Kalshi Markets --------------------------------------------------------
+
+@main.command("kalshi-markets")
+@click.option("--limit", default=50, help="Max markets to fetch")
+@click.option("--series", default="", help="Filter by series ticker (e.g. KXBTC, KXFED)")
+@click.option("--demo", is_flag=True, help="Use Kalshi demo environment")
+def kalshi_markets(limit: int, series: str, demo: bool):
+    """Browse active Kalshi prediction markets."""
+
+    async def _run():
+        from polyclaw.api.kalshi import KalshiClient
+
+        client = KalshiClient(demo=demo)
+        try:
+            markets = await client.get_all_markets(
+                status="open",
+                series_ticker=series,
+            )
+            # Sort by volume
+            markets.sort(key=lambda m: m.volume, reverse=True)
+            top = markets[:limit]
+            env = "demo" if demo else "production"
+            print_kalshi_markets(top, title=f"Kalshi Markets ({env})")
+
+            console.print(f"\n   Total open markets: [bold]{len(markets)}[/]")
+            with_vol = [m for m in markets if m.volume > 0]
+            console.print(f"   Markets with volume: [bold]{len(with_vol)}[/]")
+            total_vol = sum(m.volume for m in markets)
+            console.print(f"   Total volume: [bold]{total_vol:,.0f}[/] contracts")
+
+            if client.is_authenticated:
+                console.print(f"\n   [green]✅ Authenticated[/] — trading endpoints available")
+            else:
+                console.print(
+                    f"\n   [dim]Not authenticated — set KALSHI_API_KEY_ID and "
+                    f"KALSHI_PRIVATE_KEY_PATH in .env for trading[/]"
+                )
+        finally:
+            await client.close()
+
+    asyncio.run(_run())
+
+
+@main.command("kalshi-balance")
+@click.option("--demo", is_flag=True, help="Use Kalshi demo environment")
+def kalshi_balance(demo: bool):
+    """Check your Kalshi account balance (requires API keys)."""
+
+    async def _run():
+        from polyclaw.api.kalshi import KalshiClient
+
+        client = KalshiClient(demo=demo)
+        try:
+            if not client.is_authenticated:
+                console.print(
+                    "[red]❌ Not authenticated.[/] Set KALSHI_API_KEY_ID and "
+                    "KALSHI_PRIVATE_KEY_PATH in .env"
+                )
+                return
+
+            balance = await client.get_balance()
+            env = "DEMO" if demo else "PRODUCTION"
+            console.print(f"\n[bold cyan]💰 Kalshi Balance ({env})[/]")
+            console.print(f"   Balance: [bold green]${balance.balance:,.2f}[/]")
+            console.print(f"   Payout:  [bold]${balance.payout:,.2f}[/]")
+
+            positions = await client.get_positions()
+            console.print(f"   Positions: [bold]{len(positions)}[/]")
+
+            orders = await client.get_orders(status="resting")
+            console.print(f"   Open orders: [bold]{len(orders)}[/]")
+        finally:
+            await client.close()
+
+    asyncio.run(_run())
+
+
+# ---- Cross-Exchange Comparison ---------------------------------------------
+
+@main.command("compare")
+@click.option("--max-markets", default=200, help="Max markets to fetch per exchange")
+def compare_exchanges(max_markets: int):
+    """Compare Polymarket vs Kalshi markets side by side."""
+
+    async def _run():
+        from polyclaw.analysis.compare import CrossExchangeAnalyzer
+
+        analyzer = CrossExchangeAnalyzer()
+        try:
+            comp = await analyzer.compare(max_markets=max_markets)
+            print_exchange_comparison(comp)
+        finally:
+            await analyzer.close()
 
     asyncio.run(_run())
 
