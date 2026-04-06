@@ -1,0 +1,12 @@
+httpx>=0.27
+websockets>=13.0
+python-dotenv>=1.0
+rich>=13.0
+plotly>=5.20
+pandas>=2.2
+numpy>=1.26
+click>=8.1
+sqlalchemy>=2.0
+aiosqlite>=0.20
+pydantic>=2.6
+kaleido>=0.2
